@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pakistan Salary Tax Calculator (FY 2025–26)</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 0; background: #f6f7f9; color: #111; }
+    .wrap { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.06); padding: 18px; }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    .sub { margin: 0 0 16px; color: #555; line-height: 1.35; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+
+    label { font-size: 12px; color: #444; display: block; margin: 0 0 6px; }
+    input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #d7dbe0; border-radius: 10px; font-size: 14px; }
+    input:focus { outline: none; border-color: #2b6cb0; box-shadow: 0 0 0 3px rgba(43,108,176,.15); }
+
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    button { border: 0; border-radius: 10px; padding: 10px 12px; font-size: 14px; cursor: pointer; }
+    .primary { background: #2b6cb0; color: #fff; }
+    .ghost { background: #eef2f7; color: #111; }
+
+    .results { display: grid; gap: 10px; }
+    .kpi { border: 1px solid #e7ebf0; border-radius: 12px; padding: 12px; }
+    .kpi .t { font-size: 12px; color: #666; margin-bottom: 6px; }
+    .kpi .v { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
+    .kpi.small .v { font-size: 16px; font-weight: 650; }
+
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 560px) { .two { grid-template-columns: 1fr; } }
+
+    .note { margin-top: 14px; font-size: 12px; color: #666; line-height: 1.45; }
+    .error { color: #b00020; font-size: 12px; margin-top: 10px; display: none; }
+    code { background: #f1f3f6; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Pakistan Salary Tax Calculator (FY 2025–26)</h1>
+      <p class="sub">
+        Enter only your gross monthly salary. The calculator applies fixed rules internally (fuel, medical, base, PF)
+        and computes tax using salaried slabs.
+      </p>
+
+      <div class="grid">
+        <div class="card" style="box-shadow:none;border:1px solid #e7ebf0;">
+          <label for="gross">Gross Monthly Salary (PKR)</label>
+          <input id="gross" inputmode="numeric" placeholder="Enter gross monthly salary (e.g., 250000)" />
+          <div class="row">
+            <button class="primary" id="calcBtn" type="button">Calculate</button>
+            <button class="ghost" id="clearBtn" type="button">Clear</button>
+          </div>
+          <div class="error" id="err"></div>
+
+          <div class="note">
+            Fixed rules used:
+            <br/>• Fuel (non-taxable): if gross ≤ <code>300,000</code> → <code>25,000</code>, else <code>50,000</code>
+            <br/>• Medical (non-taxable): <code>7%</code> of (gross − fuel)
+            <br/>• Base: <code>70%</code> of (gross − fuel)
+            <br/>• PF deduction: <code>5%</code> of base (deducted from pay)
+            <br/>• Taxable monthly = (gross − fuel − medical)
+          </div>
+        </div>
+
+        <div class="results">
+          <div class="kpi">
+            <div class="t">Estimated In-Hand (Monthly)</div>
+            <div class="v" id="inHand">—</div>
+          </div>
+
+          <div class="two">
+            <div class="kpi small">
+              <div class="t">Monthly Income Tax</div>
+              <div class="v" id="monthlyTax">—</div>
+            </div>
+            <div class="kpi small">
+              <div class="t">Provident Fund (Monthly)</div>
+              <div class="v" id="pfMonthly">—</div>
+            </div>
+          </div>
+
+          <div class="two">
+            <div class="kpi small">
+              <div class="t">Fuel (Non-taxable)</div>
+              <div class="v" id="fuel">—</div>
+            </div>
+            <div class="kpi small">
+              <div class="t">Medical (Non-taxable)</div>
+              <div class="v" id="medical">—</div>
+            </div>
+          </div>
+
+          <div class="two">
+            <div class="kpi small">
+              <div class="t">Taxable Monthly</div>
+              <div class="v" id="taxableMonthly">—</div>
+            </div>
+            <div class="kpi small">
+              <div class="t">Annual Taxable</div>
+              <div class="v" id="annualTaxable">—</div>
+            </div>
+          </div>
+
+          <div class="two">
+            <div class="kpi small">
+              <div class="t">Annual Income Tax</div>
+              <div class="v" id="annualTax">—</div>
+            </div>
+            <div class="kpi small">
+              <div class="t">Base Salary (Monthly)</div>
+              <div class="v" id="baseMonthly">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================
+    // Fixed backend rules (constants)
+    // ==========================
+    const RULES = Object.freeze({
+      fuel: {
+        thresholdMonthly: 300000,
+        belowOrEqual: 25000,
+        above: 50000,
+      },
+      medicalRateOnRemainder: 0.07, // 7% of (gross - fuel)
+      baseRateOnRemainder: 0.70,    // 70% of (gross - fuel)
+      pfRateOnBase: 0.05,           // 5% of base
+      pfReducesTaxable: false       // keep false to match your stated logic
+    });
+
+    // Salaried slabs FY 2025–26
+    const SLABS = [
+      { upTo: 600000,   baseTax: 0,      rate: 0.00, excessOver: 0 },
+      { upTo: 1200000,  baseTax: 0,      rate: 0.01, excessOver: 600000 },
+      { upTo: 2200000,  baseTax: 6000,   rate: 0.11, excessOver: 1200000 },
+      { upTo: 3200000,  baseTax: 116000, rate: 0.23, excessOver: 2200000 },
+      { upTo: 4100000,  baseTax: 346000, rate: 0.30, excessOver: 3200000 },
+      { upTo: Infinity, baseTax: 616000, rate: 0.35, excessOver: 4100000 },
+    ];
+
+    const fmt = new Intl.NumberFormat("en-PK", { maximumFractionDigits: 0 });
+
+    function parseGross() {
+      const raw = document.getElementById("gross").value.trim().replace(/,/g, "");
+      if (!raw) throw new Error("Please enter your gross monthly salary.");
+      const v = Number(raw);
+      if (!Number.isFinite(v) || v < 0) throw new Error("Gross salary must be a valid non-negative number.");
+      return v;
+    }
+
+    function computeAnnualTax(annualTaxable) {
+      const slab = SLABS.find(s => annualTaxable <= s.upTo);
+      if (!slab) throw new Error("No tax slab matched.");
+      const excess = Math.max(0, annualTaxable - slab.excessOver);
+      return slab.baseTax + slab.rate * excess;
+    }
+
+    function calculate(grossMonthly) {
+      const fuel = (grossMonthly <= RULES.fuel.thresholdMonthly)
+        ? RULES.fuel.belowOrEqual
+        : RULES.fuel.above;
+
+      const remainder = Math.max(0, grossMonthly - fuel);
+
+      const medical = remainder * RULES.medicalRateOnRemainder; // non-taxable
+      const baseMonthly = remainder * RULES.baseRateOnRemainder;
+      const pfMonthly = baseMonthly * RULES.pfRateOnBase;
+
+      let taxableMonthly = Math.max(0, remainder - medical);
+      if (RULES.pfReducesTaxable) taxableMonthly = Math.max(0, taxableMonthly - pfMonthly);
+
+      const annualTaxable = taxableMonthly * 12;
+      const annualTax = computeAnnualTax(annualTaxable);
+      const monthlyTax = annualTax / 12;
+
+      const inHand = grossMonthly - monthlyTax - pfMonthly;
+
+      return { fuel, medical, taxableMonthly, annualTaxable, annualTax, monthlyTax, baseMonthly, pfMonthly, inHand };
+    }
+
+    function setMoney(id, value) {
+      document.getElementById(id).textContent = "PKR " + fmt.format(Math.round(value));
+    }
+
+    function showError(msg) {
+      const el = document.getElementById("err");
+      el.style.display = "block";
+      el.textContent = msg;
+    }
+
+    function clearError() {
+      const el = document.getElementById("err");
+      el.style.display = "none";
+      el.textContent = "";
+    }
+
+    function clearResults() {
+      ["inHand","monthlyTax","pfMonthly","fuel","medical","taxableMonthly","annualTaxable","annualTax","baseMonthly"]
+        .forEach(id => document.getElementById(id).textContent = "—");
+    }
+
+    document.getElementById("calcBtn").addEventListener("click", () => {
+      clearError();
+      try {
+        const gross = parseGross();
+        const r = calculate(gross);
+        setMoney("inHand", r.inHand);
+        setMoney("monthlyTax", r.monthlyTax);
+        setMoney("pfMonthly", r.pfMonthly);
+        setMoney("fuel", r.fuel);
+        setMoney("medical", r.medical);
+        setMoney("taxableMonthly", r.taxableMonthly);
+        setMoney("annualTaxable", r.annualTaxable);
+        setMoney("annualTax", r.annualTax);
+        setMoney("baseMonthly", r.baseMonthly);
+      } catch (e) {
+        clearResults();
+        showError(e.message || String(e));
+      }
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      document.getElementById("gross").value = "";
+      clearError();
+      clearResults();
+      document.getElementById("gross").focus();
+    });
+
+    // Optional: calculate on Enter key
+    document.getElementById("gross").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("calcBtn").click();
+    });
+  </script>
+</body>
+</html>
